@@ -1,0 +1,50 @@
+name: Проверка и публикация на GitHub Pages
+
+# On every push and PR: validate config.json and run tests.
+# On push to main: also publish dist/ to GitHub Pages.
+# If validation fails, nothing is published and the previous version stays live.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Проверка config.json и тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Сборка (валидация config.json)
+        run: node scripts/build.mjs
+      - name: Тесты
+        run: node --test
+      - name: Артефакт для Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    name: Публикация
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}utm-direct.js
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "countries": ["ZA", "BR", "PH", "AU"],
+  "addParams": { "utm_source": "direct" },
+  "hostnames": ["my.tradequo.com"],
+  "pathRegex": "^/([a-z]{2}([-_][a-z]{2,4})?/)?auth/sign-up/?$",
+  "skipIfParamPrefixes": ["utm_"],
+  "skipIfParams": [
+    "referral", "ref", "reg", "regnew", "new",
+    "gclid", "gbraid", "wbraid", "dclid", "fbclid", "msclkid",
+    "ttclid", "twclid", "li_fat_id", "yclid", "tradingview_uid", "roistat_visit"
+  ],
+  "skipIfLocalStorageKeys": ["IB_CLICK_TOKEN", "REFERRAL_QUERY_PARAM_NAME"],
+  "geoTimeoutMs": 2000
+}
