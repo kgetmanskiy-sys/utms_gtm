@@ -10,6 +10,7 @@
 //   node scripts/build.mjs
 //   node tools/e2e-signup-check.mjs            # all scenarios
 //   node tools/e2e-signup-check.mjs za-late    # one scenario
+//   E2E_LIVE=1 node tools/e2e-signup-check.mjs # use the script published on GitHub Pages instead of dist/
 // Requires Playwright with Chromium (npm i -D playwright && npx playwright install chromium).
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -24,7 +25,8 @@ const SIGN_UP = 'https://my.tradequo.com/en/auth/sign-up';
 const SCRIPT_URL = 'https://kgetmanskiy-sys.github.io/utms_gtm/utm-direct.js';
 const BLOCK = /googletagmanager|google-analytics|doubleclick|g10696554090|g1980843351|amplitude|datadoghq|rudderstack|zdassets|zendesk|facebook|clarity|hotjar|cdn-cgi\/rum/;
 
-const DIST_SCRIPT = readFileSync(join(ROOT, 'dist', 'utm-direct.js'), 'utf8');
+const LIVE = process.env.E2E_LIVE === '1';
+const DIST_SCRIPT = LIVE ? null : readFileSync(join(ROOT, 'dist', 'utm-direct.js'), 'utf8');
 const LOADER = /<script>([\s\S]*?)<\/script>/.exec(readFileSync(join(ROOT, 'gtm', 'loader.html'), 'utf8'))[1];
 
 const SCENARIOS = {
@@ -60,6 +62,7 @@ async function runScenario(browser, name, s) {
     const req = route.request();
     const url = req.url();
     if (BLOCK.test(url)) return route.abort();
+    if (url === SCRIPT_URL && LIVE) return route.continue();
     if (url === SCRIPT_URL) return route.fulfill({ status: 200, contentType: 'application/javascript', body: DIST_SCRIPT });
     if (req.method() !== 'GET') {
       intercepted.push({ url, body: req.postData() });
