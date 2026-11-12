@@ -10,6 +10,31 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = readFileSync(join(ROOT, 'src', 'utm-direct.js'), 'utf8');
 const CONFIG = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8'));
 
+// Behaviour tests use their own fixed config, so editing config.json on GitHub (new countries,
+// another utm value) never breaks them. config.json itself is checked in «валидация config.json».
+const TEST_CONFIG = {
+  enabled: true,
+  countries: ['ZA', 'BR', 'PH', 'AU'],
+  addParams: { utm_source: 'direct' },
+  hostnames: ['my.tradequo.com'],
+  pathRegex: '^/([a-z]{2}([-_][a-z]{2,4})?/)?auth/sign-up/?$',
+  skipIfParamPrefixes: ['utm_'],
+  skipIfParams: [
+    'referral', 'ref', 'reg', 'regnew', 'new',
+    'gclid', 'gbraid', 'wbraid', 'dclid', 'fbclid', 'msclkid',
+    'ttclid', 'twclid', 'li_fat_id', 'yclid', 'tradingview_uid', 'roistat_visit',
+  ],
+  skipIfLocalStorageKeys: ['IB_CLICK_TOKEN', 'REFERRAL_QUERY_PARAM_NAME'],
+  geoTimeoutMs: 2000,
+};
+
+/** The query string the script appends for a config, e.g. 'utm_source=direct'. */
+const addedQuery = (config) =>
+  Object.entries(config.addParams)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join('&');
+const Q = addedQuery(TEST_CONFIG);
+
 const SIGN_UP = 'https://my.tradequo.com/en/auth/sign-up';
 
 function makeStorage(init = {}) {
@@ -28,7 +53,7 @@ function makeStorage(init = {}) {
  */
 function load({
   href = SIGN_UP,
-  config = CONFIG,
+  config = TEST_CONFIG,
   trace = {},
   ngBooted = false,
   local = {},
@@ -100,7 +125,7 @@ describe('добавляет метку', () => {
     const env = load();
     const res = await env.window.tqUtmDirect.ready;
     assert.equal(res.status, 'applied');
-    assert.equal(urlOf(env), `${SIGN_UP}?utm_source=direct`);
+    assert.equal(urlOf(env), `${SIGN_UP}?${Q}`);
     assert.deepEqual(env.calls.fetch, ['/cdn-cgi/trace']);
     assert.equal(env.calls.dispatched.length, 0);
     assert.deepEqual(JSON.parse(JSON.stringify(env.window.dataLayer)), [
@@ -109,11 +134,11 @@ describe('добавляет метку', () => {
     assert.equal(env.window.sessionStorage.getItem('tqUtmDirect.country'), 'ZA');
   });
 
-  for (const country of CONFIG.countries) {
+  for (const country of TEST_CONFIG.countries) {
     test(`страна ${country} из config.json`, async () => {
       const env = load({ trace: { country } });
       assert.equal((await env.window.tqUtmDirect.ready).status, 'applied');
-      assert.equal(urlOf(env), `${SIGN_UP}?utm_source=direct`);
+      assert.equal(urlOf(env), `${SIGN_UP}?${Q}`);
     });
   }
 
@@ -129,8 +154,8 @@ describe('добавляет метку', () => {
   test('сохраняет остальные параметры (без перекодирования) и hash', async () => {
     const env = load({ href: `${SIGN_UP}?wizard_id=5&x=a%20b+c#frag` });
     await env.window.tqUtmDirect.ready;
-    assert.equal(urlOf(env), `${SIGN_UP}?wizard_id=5&x=a%20b+c&utm_source=direct#frag`);
-    assert.deepEqual(env.calls.replaceState, ['/en/auth/sign-up?wizard_id=5&x=a%20b+c&utm_source=direct#frag']);
+    assert.equal(urlOf(env), `${SIGN_UP}?wizard_id=5&x=a%20b+c&${Q}#frag`);
+    assert.deepEqual(env.calls.replaceState, [`/en/auth/sign-up?wizard_id=5&x=a%20b+c&${Q}#frag`]);
   });
 
   for (const path of ['/pt/auth/sign-up', '/pt-br/auth/sign-up', '/es_ES/auth/sign-up', '/auth/sign-up', '/en/auth/sign-up/', '/EN/AUTH/SIGN-UP']) {
@@ -141,7 +166,7 @@ describe('добавляет метку', () => {
   }
 
   test('несколько параметров в addParams', async () => {
-    const config = { ...CONFIG, addParams: { utm_source: 'direct', utm_medium: 'none' } };
+    const config = { ...TEST_CONFIG, addParams: { utm_source: 'direct', utm_medium: 'none' } };
     const env = load({ config });
     await env.window.tqUtmDirect.ready;
     assert.equal(urlOf(env), `${SIGN_UP}?utm_source=direct&utm_medium=none`);
@@ -182,7 +207,7 @@ describe('ничего не меняет', () => {
     });
   }
 
-  for (const p of CONFIG.skipIfParams) {
+  for (const p of TEST_CONFIG.skipIfParams) {
     test(`есть ${p}`, async () => {
       const env = load({ href: `${SIGN_UP}?foo=1&${p}=ABC` });
       await assertUntouched(env, /url has param/);
@@ -193,7 +218,7 @@ describe('ничего не меняет', () => {
     await assertUntouched(load({ href: `${SIGN_UP}?referral=` }), /url has param/);
   });
 
-  for (const key of CONFIG.skipIfLocalStorageKeys) {
+  for (const key of TEST_CONFIG.skipIfLocalStorageKeys) {
     test(`партнёр из прошлого визита: localStorage ${key}`, async () => {
       await assertUntouched(load({ local: { [key]: 'PARTNER1' } }), /localStorage/);
     });
@@ -226,12 +251,12 @@ describe('ничего не меняет', () => {
   });
 
   test('trace не ответил за geoTimeoutMs', async () => {
-    const env = load({ config: { ...CONFIG, geoTimeoutMs: 50 }, trace: { delayMs: 500 } });
+    const env = load({ config: { ...TEST_CONFIG, geoTimeoutMs: 50 }, trace: { delayMs: 500 } });
     await assertUntouched(env, /timeout/);
   });
 
   test('enabled: false', async () => {
-    const env = load({ config: { ...CONFIG, enabled: false } });
+    const env = load({ config: { ...TEST_CONFIG, enabled: false } });
     await assertUntouched(env, /disabled/);
     assert.equal(env.calls.fetch.length, 0);
   });
@@ -288,7 +313,7 @@ describe('повторные вызовы', () => {
     env.location.href = SIGN_UP;
     const res = await env.window.tqUtmDirect.run();
     assert.equal(res.status, 'applied');
-    assert.equal(urlOf(env), `${SIGN_UP}?utm_source=direct`);
+    assert.equal(urlOf(env), `${SIGN_UP}?${Q}`);
     assert.equal(env.calls.dispatched.length, 1);
   });
 });
@@ -296,6 +321,26 @@ describe('повторные вызовы', () => {
 describe('валидация config.json', () => {
   test('config.json из репозитория валиден', () => {
     assert.deepEqual(validateConfig(CONFIG), []);
+  });
+
+  test('собранный из config.json скрипт работает', async () => {
+    const env = load({ config: CONFIG, trace: { country: CONFIG.countries[0] || 'ZA' } });
+    const res = await env.window.tqUtmDirect.ready;
+    assert.notEqual(res.status, 'error', JSON.stringify(res));
+    assert.deepEqual(JSON.parse(JSON.stringify(env.window.tqUtmDirect.config)), CONFIG);
+    const standardCase =
+      CONFIG.enabled &&
+      CONFIG.countries.length > 0 &&
+      CONFIG.hostnames.map((h) => h.toLowerCase()).includes('my.tradequo.com') &&
+      new RegExp(CONFIG.pathRegex, 'i').test('/en/auth/sign-up');
+    if (standardCase) {
+      assert.equal(res.status, 'applied', JSON.stringify(res));
+      assert.equal(urlOf(env), `${SIGN_UP}?${addedQuery(CONFIG)}`);
+    }
+  });
+
+  test('тестовый конфиг валиден', () => {
+    assert.deepEqual(validateConfig(TEST_CONFIG), []);
   });
 
   const bad = [
@@ -314,18 +359,18 @@ describe('валидация config.json', () => {
   ];
   for (const [name, patch, pattern] of bad) {
     test(name, () => {
-      const errors = validateConfig({ ...CONFIG, ...patch });
+      const errors = validateConfig({ ...TEST_CONFIG, ...patch });
       assert.ok(errors.some((e) => pattern.test(e)), errors.join('\n') || 'нет ошибок');
     });
   }
 
   test('не хватает ключа', () => {
-    const { geoTimeoutMs, ...rest } = CONFIG;
+    const { geoTimeoutMs, ...rest } = TEST_CONFIG;
     assert.ok(validateConfig(rest).some((e) => /geoTimeoutMs/.test(e)));
   });
 
   test('buildScript вшивает конфиг и версию', () => {
-    const out = buildScript(SOURCE, CONFIG, '2026-01-01.abc1234');
+    const out = buildScript(SOURCE, TEST_CONFIG, '2026-01-01.abc1234');
     assert.ok(!out.includes('__CONFIG__'));
     assert.ok(!out.includes('__VERSION__'));
     assert.ok(out.includes('"countries":["ZA","BR","PH","AU"]'));

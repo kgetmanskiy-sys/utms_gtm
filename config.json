@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "countries": ["ZA", "BR", "PH", "AU"],
-  "addParams": { "utm_source": "direct" },
+  "addParams": { "utm_source": "mkt_website" },
   "hostnames": ["my.tradequo.com"],
   "pathRegex": "^/([a-z]{2}([-_][a-z]{2,4})?/)?auth/sign-up/?$",
   "skipIfParamPrefixes": ["utm_"],

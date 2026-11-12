@@ -1,6 +1,6 @@
-# utm_source=direct для регистрации на my.tradequo.com
+# utm_source=mkt_website для регистрации на my.tradequo.com
 
-Скрипт для Google Tag Manager. Посетителям из выбранных стран, которые открыли страницу регистрации `https://my.tradequo.com/<язык>/auth/sign-up` **без меток**, он дописывает в URL `?utm_source=direct`. Метка попадает в данные регистрации: форма B2Core отправляет её в поле `utm`.
+Скрипт для Google Tag Manager. Посетителям из выбранных стран, которые открыли страницу регистрации `https://my.tradequo.com/<язык>/auth/sign-up` **без меток**, он дописывает в URL `?utm_source=mkt_website` (значение задаётся в `config.json`). Метка попадает в данные регистрации: форма B2Core отправляет её в поле `utm`.
 
 - **Страница не перезагружается.** URL меняется через `history.replaceState`. Если форма уже загружена, портал перечитывает адрес без перезагрузки, а введённые данные сохраняются.
 - **Не трогаем посетителей, у которых уже есть признаки источника:**
@@ -54,7 +54,7 @@ config.json на GitHub ──коммит в main──▶ GitHub Actions: пр
 |---|---|
 | `enabled` | `true` — работает, `false` — выключено (аварийный выключатель). |
 | `countries` | Коды стран ISO 3166-1, две заглавные буквы: `"ZA"` — ЮАР, `"BR"` — Бразилия, `"PH"` — Филиппины, `"AU"` — Австралия, `"IN"` — Индия, `"NG"` — Нигерия… [Список кодов](https://ru.wikipedia.org/wiki/ISO_3166-1#Коды). |
-| `addParams` | Какие параметры добавлять. Например, `{ "utm_source": "direct", "utm_medium": "none" }`. Каждый параметр должен попадать под `skipIfParamPrefixes` или `skipIfParams`; для `utm_*` это уже так. |
+| `addParams` | Какие параметры добавлять. Например, `{ "utm_source": "mkt_website", "utm_medium": "none" }`. Каждый параметр должен попадать под `skipIfParamPrefixes` или `skipIfParams`; для `utm_*` это уже так. |
 | `hostnames` | На каких доменах работать. |
 | `pathRegex` | Регулярное выражение для пути страницы. По умолчанию это страница регистрации на любом языке (`/en/auth/sign-up`, `/pt/auth/sign-up`, …). |
 | `skipIfParamPrefixes` | Если в URL есть параметр с таким началом, ничего не делаем (`utm_`). |
@@ -78,7 +78,7 @@ localStorage['tqUtmDirect.forceCountry'] = 'ZA'; // притвориться п�
 localStorage['tqUtmDirect.debug'] = '1';         // писать в консоль, что делает скрипт
 ```
 Затем откройте `https://my.tradequo.com/en/auth/sign-up`. Ожидаемый результат:
-- адрес стал `…/sign-up?utm_source=direct`, страница не перезагружалась;
+- адрес стал `…/sign-up?utm_source=mkt_website`, страница не перезагружалась;
 - в консоли есть строка `[tqUtmDirect] applied {country: 'ZA', …}`;
 - в GTM Preview есть событие `utm_direct_applied` с переменной `utm_direct_country`. Его можно использовать в своих тегах.
 
@@ -93,7 +93,7 @@ localStorage.removeItem('tqUtmDirect.forceCountry'); localStorage.removeItem('tq
 
 ## Важно знать
 
-- **GA4.** URL теперь содержит `utm_source=direct`, поэтому в GA4 такие сессии будут видны как source `direct` / medium `(not set)`, а не `(direct) / (none)`. Если нужен medium, добавьте его в `addParams`.
+- **GA4.** URL теперь содержит `utm_source=mkt_website`, поэтому в GA4 такие сессии будут видны как source `mkt_website` / medium `(not set)`, а не `(direct) / (none)`. Если нужен medium, добавьте его в `addParams`.
 - **VPN.** Страна определяется по IP. Посетитель с VPN считается страной VPN-сервера.
 - **Портал обновляется.** B2Core — сторонняя платформа. После её крупных обновлений стоит прогнать e2e-проверку (ниже): она показывает, доходит ли метка до запроса регистрации.
 

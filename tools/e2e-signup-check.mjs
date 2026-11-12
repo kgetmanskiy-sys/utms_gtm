@@ -26,6 +26,12 @@ const SCRIPT_URL = 'https://kgetmanskiy-sys.github.io/utms_gtm/utm-direct.js';
 const BLOCK = /googletagmanager|google-analytics|doubleclick|g10696554090|g1980843351|amplitude|datadoghq|rudderstack|zdassets|zendesk|facebook|clarity|hotjar|cdn-cgi\/rum/;
 
 const LIVE = process.env.E2E_LIVE === '1';
+// Expected params come from config.json (in E2E_LIVE mode: config.json must already be published).
+const ADD_PARAMS = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8')).addParams;
+const hasAddedParams = (href) => {
+  const params = new URL(href).searchParams;
+  return Object.entries(ADD_PARAMS).every(([k, v]) => params.get(k) === v);
+};
 const DIST_SCRIPT = LIVE ? null : readFileSync(join(ROOT, 'dist', 'utm-direct.js'), 'utf8');
 const LOADER = /<script>([\s\S]*?)<\/script>/.exec(readFileSync(join(ROOT, 'gtm', 'loader.html'), 'utf8'))[1];
 
@@ -105,8 +111,8 @@ async function runScenario(browser, name, s) {
   const href = page.url();
   check.href = href;
 
-  if (s.expectApplied === true && !/[?&]utm_source=direct(&|#|$)/.test(href)) check.errors.push('в URL нет utm_source=direct');
-  if (s.expectApplied === false && /utm_source=direct/.test(href)) check.errors.push('URL изменён, хотя не должен');
+  if (s.expectApplied === true && !hasAddedParams(href)) check.errors.push(`в URL нет ${new URLSearchParams(ADD_PARAMS)}`);
+  if (s.expectApplied === false && href !== SIGN_UP + (s.query || '')) check.errors.push('URL изменён, хотя не должен');
   if (s.expectApplied !== null && (status && status.status === 'applied') !== s.expectApplied) check.errors.push(`status=${status && status.status}`);
 
   if (s.loader === 'after-fill') {
@@ -129,7 +135,7 @@ async function runScenario(browser, name, s) {
     } else {
       const utm = JSON.parse(submit.body).utm || {};
       check.utm_source = utm.utm_source;
-      const expected = s.expectUtmSource || (s.expectApplied ? 'direct' : undefined);
+      const expected = s.expectUtmSource || (s.expectApplied ? ADD_PARAMS.utm_source : undefined);
       if (utm.utm_source !== expected) check.errors.push(`в запросе регистрации utm_source=${utm.utm_source}, ожидалось ${expected}`);
     }
   }
